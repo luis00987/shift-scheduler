@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shift Scheduler</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f5f5f0;
+      --surface: #ffffff;
+      --border: #e0ddd6;
+      --primary: #2d6a4f;
+      --primary-light: #52b788;
+      --text: #1a1a1a;
+      --muted: #6b6b6b;
+      --radius: 10px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+
+    .container { max-width: 720px; margin: 0 auto; }
+
+    header { margin-bottom: 2rem; }
+
+    header h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    header p {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-top: 0.25rem;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .card h2 {
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 1rem;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    label {
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--muted);
+    }
+
+    input[type="time"],
+    input[type="text"],
+    select {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.55rem 0.75rem;
+      font-size: 0.95rem;
+      font-family: inherit;
+      color: var(--text);
+      background: var(--bg);
+      width: 100%;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    input[type="time"]:focus,
+    input[type="text"]:focus,
+    select:focus { border-color: var(--primary-light); }
+
+    /* Participants list */
+    .participants-label {
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+    }
+
+    .participant-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .participant-row input[type="text"] { flex: 1; }
+
+    .participant-row .toggle-group {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      flex-shrink: 0;
+    }
+
+    .toggle-group .toggle-label {
+      font-size: 0.75rem;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .remove-btn {
+      background: none;
+      border: none;
+      color: #bbb;
+      font-size: 1.1rem;
+      cursor: pointer;
+      padding: 0 0.2rem;
+      line-height: 1;
+      width: auto;
+      margin-top: 0;
+      flex-shrink: 0;
+      transition: color 0.15s;
+    }
+
+    .remove-btn:hover { color: #c0392b; background: none; }
+
+    .add-btn {
+      background: none;
+      border: 1px dashed var(--border);
+      color: var(--muted);
+      border-radius: 6px;
+      padding: 0.45rem 0.75rem;
+      font-size: 0.85rem;
+      cursor: pointer;
+      width: 100%;
+      text-align: left;
+      margin-top: 0.25rem;
+      transition: border-color 0.15s, color 0.15s;
+    }
+
+    .add-btn:hover {
+      border-color: var(--primary-light);
+      color: var(--primary);
+      background: none;
+    }
+
+    /* Drag handle */
+    .drag-handle {
+      cursor: grab;
+      color: #ccc;
+      font-size: 1rem;
+      flex-shrink: 0;
+      padding: 0 0.1rem;
+      line-height: 1;
+      user-select: none;
+      transition: color 0.15s;
+    }
+
+    .drag-handle:active { cursor: grabbing; }
+    .participant-row:hover .drag-handle { color: #aaa; }
+
+    .participant-row.drag-over {
+      border-top: 2px solid var(--primary-light);
+    }
+
+    /* Toggle */
+    .toggle {
+      position: relative;
+      flex-shrink: 0;
+      width: 32px;
+      height: 18px;
+    }
+
+    .toggle input { opacity: 0; width: 0; height: 0; }
+
+    .toggle-track {
+      position: absolute;
+      inset: 0;
+      background: #ccc;
+      border-radius: 99px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .toggle-track::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 14px;
+      height: 14px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+
+    .toggle input:checked + .toggle-track { background: var(--primary); }
+    .toggle input:checked + .toggle-track::after { transform: translateX(14px); }
+
+    /* Generate button */
+    .generate-btn {
+      display: block;
+      width: 100%;
+      padding: 0.75rem;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+      margin-top: 0.5rem;
+    }
+
+    .generate-btn:hover { background: #245a41; }
+
+    .error {
+      color: #c0392b;
+      font-size: 0.85rem;
+      margin-top: 0.5rem;
+      display: none;
+    }
+
+    /* Output */
+    #output { display: none; }
+
+    .schedule-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .schedule-header h2 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    .meta { font-size: 0.8rem; color: var(--muted); }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.82rem;
+    }
+
+    .legend-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .table-wrap { overflow-x: auto; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+
+    th {
+      text-align: left;
+      padding: 0.55rem 0.75rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      border-bottom: 2px solid var(--border);
+    }
+
+    td { padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); }
+    tr:last-child td { border-bottom: none; }
+
+    .time-cell {
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+
+    .pair-cell { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+    .badge {
+      display: inline-block;
+      padding: 0.2rem 0.65rem;
+      border-radius: 99px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    /* Stats */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 0.75rem;
+    }
+
+    .stat-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+    }
+
+    .stat-name {
+      font-size: 0.82rem;
+      font-weight: 600;
+      margin-bottom: 0.3rem;
+    }
+
+    .stat-line { font-size: 0.78rem; color: var(--muted); }
+
+    .stat-line.consecutive {
+      color: #b45309;
+      margin-top: 0.3rem;
+    }
+
+    .stat-ds-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 0.6rem;
+      padding-top: 0.5rem;
+      border-top: 1px solid var(--border);
+      gap: 0.4rem;
+    }
+
+    .stat-ds-label {
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    /* Global option row */
+    .option-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.75rem 1rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 1rem;
+    }
+
+    .option-row-text { flex: 1; }
+
+    .option-row-title {
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .option-row-desc {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-top: 0.15rem;
+    }
+
+    @media (max-width: 480px) {
+      .form-grid { grid-template-columns: 1fr; }
+    }
+
+    .copy-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      width: auto;
+      padding: 0.4rem 0.9rem;
+      background: var(--bg);
+      color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      cursor: pointer;
+      margin: 0 0 1rem;
+      transition: border-color 0.15s, color 0.15s;
+    }
+
+    .copy-btn:hover { border-color: var(--primary-light); color: var(--primary); background: var(--bg); }
+    .copy-btn.copied { border-color: var(--primary); color: var(--primary); }
+
+    @media print {
+      body { background: #fff; padding: 0; }
+      .card { border: none; padding: 0; margin-bottom: 1rem; }
+      #input-section { display: none; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>Rotating Shift Scheduler</h1>
+    <p>Generate a rotating pair schedule for your team.</p>
+  </header>
+
+  <div class="card" id="input-section">
+    <h2>Configuration</h2>
+
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="start">Start time</label>
+        <input type="time" id="start" value="08:00" />
+      </div>
+      <div class="form-group">
+        <label for="end">End time</label>
+        <input type="time" id="end" value="17:00" />
+      </div>
+      <div class="form-group">
+        <label for="block">Block duration</label>
+        <select id="block">
+          <option value="15">15 minutes</option>
+          <option value="20">20 minutes</option>
+          <option value="30" selected>30 minutes</option>
+          <option value="40">40 minutes</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="option-row">
+      <div class="option-row-text">
+        <div class="option-row-title">Allow double shift</div>
+        <div class="option-row-desc">Globally allow consecutive shifts. Individual settings apply when enabled.</div>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" id="allow-double" checked onchange="onAllowDoubleChange(this.checked)" />
+        <span class="toggle-track"></span>
+      </label>
+    </div>
+
+    <div class="option-row">
+      <div class="option-row-text">
+        <div class="option-row-title">Short on staff — allow pair repeat</div>
+        <div class="option-row-desc">When enabled, the same pair can work back-to-back if no fresh pair is available.</div>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" id="allow-repeat" onchange="onAllowRepeatChange(this.checked)" />
+        <span class="toggle-track"></span>
+      </label>
+    </div>
+
+    <div class="participants-label">Participants</div>
+    <div id="participants-list"></div>
+    <button class="add-btn" onclick="addParticipant()">+ Add participant</button>
+
+    <p class="error" id="error-msg"></p>
+    <button class="generate-btn" onclick="generate()">Generate schedule</button>
+  </div>
+
+  <div id="output">
+    <div class="card">
+      <div class="schedule-header">
+        <h2 id="schedule-title">Schedule</h2>
+        <span class="meta" id="schedule-meta"></span>
+      </div>
+      <button class="copy-btn" id="copy-btn" onclick="copyScheduleImage()">Copy as image</button>
+      <div class="legend" id="legend"></div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Block</th>
+              <th>On duty</th>
+              <th>Resting</th>
+            </tr>
+          </thead>
+          <tbody id="schedule-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Summary per person</h2>
+      <div class="stats-grid" id="stats-grid"></div>
+    </div>
+  </div>
+
+</div>
+<script>
+  const COLORS = [
+    '#2d6a4f','#e76f51','#457b9d','#e9c46a','#9b5de5',
+    '#f15bb5','#00bbf9','#e07a5f','#3d405b','#81b29a'
+  ];
+
+  let participantId = 0;
+  let dragSrc = null;
+
+  function initDrag(row) {
+    row.addEventListener('dragstart', e => {
+      dragSrc = row;
+      e.dataTransfer.effectAllowed = 'move';
+      setTimeout(() => row.style.opacity = '0.4', 0);
+    });
+    row.addEventListener('dragend', () => {
+      row.style.opacity = '';
+      document.querySelectorAll('.participant-row').forEach(r => r.classList.remove('drag-over'));
+    });
+    row.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      if (row !== dragSrc) {
+        document.querySelectorAll('.participant-row').forEach(r => r.classList.remove('drag-over'));
+        row.classList.add('drag-over');
+      }
+    });
+    row.addEventListener('drop', e => {
+      e.preventDefault();
+      if (dragSrc && dragSrc !== row) {
+        const list = document.getElementById('participants-list');
+        const rows = [...list.querySelectorAll('.participant-row')];
+        const srcIdx = rows.indexOf(dragSrc);
+        const tgtIdx = rows.indexOf(row);
+        if (srcIdx < tgtIdx) list.insertBefore(dragSrc, row.nextSibling);
+        else list.insertBefore(dragSrc, row);
+      }
+      document.querySelectorAll('.participant-row').forEach(r => r.classList.remove('drag-over'));
+    });
+  }
+
+  function onAllowDoubleChange(enabled) {
+    const shortOnStaff = document.getElementById('allow-repeat').checked;
+    document.querySelectorAll('.participant-row input[type="checkbox"]').forEach(cb => {
+      if (!enabled) {
+        cb.checked = false;
+        cb.disabled = true;
+      } else if (!shortOnStaff) {
+        cb.disabled = false;
+      }
+    });
+  }
+
+  function onAllowRepeatChange(enabled) {
+    const allowDouble = document.getElementById('allow-double').checked;
+    document.querySelectorAll('.participant-row input[type="checkbox"]').forEach(cb => {
+      cb.checked = enabled ? false : (allowDouble ? cb.checked : false);
+      cb.disabled = enabled || !allowDouble;
+    });
+  }
+
+  function addParticipant(placeholder = '', doubleShift = true) {
+    const list = document.getElementById('participants-list');
+    const id = participantId++;
+    const shortOnStaff = document.getElementById('allow-repeat')?.checked ?? false;
+    const allowDouble  = document.getElementById('allow-double')?.checked ?? true;
+    const isChecked = (shortOnStaff || !allowDouble) ? false : doubleShift;
+    const isDisabled = shortOnStaff || !allowDouble;
+    const row = document.createElement('div');
+    row.className = 'participant-row';
+    row.dataset.id = id;
+    row.draggable = true;
+    row.innerHTML = `
+      <span class="drag-handle" title="Drag to reorder">⠿</span>
+      <input type="text" placeholder="${placeholder || 'Name'}" />
+      <div class="toggle-group">
+        <span class="toggle-label">Double shift</span>
+        <label class="toggle">
+          <input type="checkbox" ${isChecked ? 'checked' : ''} ${isDisabled ? 'disabled' : ''} />
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+      <button class="remove-btn" onclick="removeParticipant(this)" title="Remove">×</button>
+    `;
+    list.appendChild(row);
+    initDrag(row);
+  }
+
+  function removeParticipant(btn) {
+    const row = btn.closest('.participant-row');
+    if (document.querySelectorAll('.participant-row').length > 1) row.remove();
+  }
+
+  function getParticipants() {
+    return Array.from(document.querySelectorAll('.participant-row')).map(row => ({
+      name: row.querySelector('input[type="text"]').value.trim(),
+      doubleShift: row.querySelector('input[type="checkbox"]').checked,
+    })).filter(p => p.name !== '');
+  }
+
+  // Seed default participants (placeholders only)
+  ['Wei', 'Maritza', 'James', 'Priya'].forEach(n => addParticipant(n));
+
+  function toMinutes(timeStr) {
+    const [h, m] = timeStr.split(':').map(Number);
+    return h * 60 + m;
+  }
+
+  function formatTime(totalMinutes) {
+    const h = Math.floor(totalMinutes / 60) % 24;
+    const m = totalMinutes % 60;
+    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+  }
+
+  function allPairs(names) {
+    const pairs = [];
+    for (let i = 0; i < names.length; i++)
+      for (let j = i + 1; j < names.length; j++)
+        pairs.push([names[i], names[j]]);
+    return pairs;
+  }
+
+  function buildSchedule(participants, blockCount) {
+    const names = participants.map(p => p.name);
+    const dsMap = {};
+    participants.forEach(p => { dsMap[p.name] = p.doubleShift; });
+
+    const allowRepeat  = document.getElementById('allow-repeat').checked;
+    const allowDouble  = document.getElementById('allow-double').checked;
+    if (!allowDouble) participants.forEach(p => { dsMap[p.name] = false; });
+
+    const pairs = allPairs(names);
+    const pairCount = {};
+    pairs.forEach(p => { pairCount[p.join('|')] = 0; });
+
+    const schedule = [];
+    const workCount = {};
+    names.forEach(n => { workCount[n] = 0; });
+
+    for (let b = 0; b < blockCount; b++) {
+      const prev = b > 0 ? schedule[b - 1] : null;
+      let best = null;
+      let bestScore = Infinity;
+
+      for (const pair of pairs) {
+        const key = pair.join('|');
+        const rep = pairCount[key];
+        const load = workCount[pair[0]] + workCount[pair[1]];
+
+        // Penalize repeating the exact same pair back-to-back
+        const sameAsPrev = prev && prev[0] === pair[0] && prev[1] === pair[1];
+        const repeatPenalty = (!allowRepeat && sameAsPrev) ? 1e7 : (sameAsPrev ? 500 : 0);
+
+        // Penalize consecutive shifts for people who have double shift disabled
+        // Higher than repeatPenalty so avoiding double shifts takes priority
+        let consecPenalty = 0;
+        if (prev) {
+          for (const n of pair) {
+            if (prev.includes(n) && !dsMap[n]) consecPenalty += 1e8;
+          }
+        }
+
+        const score = rep * 1000 + load + repeatPenalty + consecPenalty;
+        if (score < bestScore) { bestScore = score; best = pair; }
+      }
+
+      schedule.push(best);
+      pairCount[best.join('|')]++;
+      workCount[best[0]]++;
+      workCount[best[1]]++;
+    }
+
+    return { schedule, workCount };
+  }
+
+  function generate() {
+    const errEl = document.getElementById('error-msg');
+    errEl.style.display = 'none';
+
+    const startStr = document.getElementById('start').value;
+    const endStr   = document.getElementById('end').value;
+    const blockMin = parseInt(document.getElementById('block').value);
+    const participants = getParticipants();
+
+    if (!startStr || !endStr) return showError('Please set a start and end time.');
+    const startMin = toMinutes(startStr);
+    const endMin   = toMinutes(endStr);
+    if (endMin <= startMin) return showError('End time must be after start time.');
+    if (participants.length < 3) return showError('You need at least 3 participants.');
+    if (participants.length > 10) return showError('Maximum 10 participants.');
+
+    const totalMin = endMin - startMin;
+    const blockCount = Math.floor(totalMin / blockMin);
+    if (blockCount === 0) return showError('The time range is shorter than one block duration.');
+
+    const names = participants.map(p => p.name);
+    const colorMap = {};
+    names.forEach((n, i) => { colorMap[n] = COLORS[i % COLORS.length]; });
+
+    const { schedule, workCount } = buildSchedule(participants, blockCount);
+
+    renderLegend(names, colorMap);
+    renderTable(schedule, startMin, blockMin, names, colorMap);
+    renderStats(participants, colorMap, workCount, schedule);
+
+    document.getElementById('schedule-title').textContent =
+      `Schedule ${startStr} – ${formatTime(endMin)}`;
+    document.getElementById('schedule-meta').textContent =
+      `${blockCount} blocks · ${blockMin} min · ${names.length} people`;
+
+    document.getElementById('output').style.display = 'block';
+    document.getElementById('output').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('error-msg');
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+
+  function renderLegend(names, colorMap) {
+    document.getElementById('legend').innerHTML = names.map(n =>
+      `<div class="legend-item">
+        <div class="legend-dot" style="background:${colorMap[n]}"></div>
+        <span>${n}</span>
+      </div>`
+    ).join('');
+  }
+
+  function renderTable(schedule, startMin, blockMin, names, colorMap) {
+    document.getElementById('schedule-body').innerHTML = schedule.map((pair, i) => {
+      const from = formatTime(startMin + i * blockMin);
+      const to   = formatTime(startMin + (i + 1) * blockMin);
+      const resting = names.filter(n => !pair.includes(n));
+      const prev = i > 0 ? schedule[i - 1] : null;
+      const isRepeat = prev && prev[0] === pair[0] && prev[1] === pair[1];
+
+      const badges = pair.map(n =>
+        `<span class="badge" style="background:${colorMap[n]}">${n}</span>`
+      ).join('');
+
+      const repeatTag = isRepeat
+        ? `<span style="font-size:0.72rem;color:#b45309;margin-left:0.4rem;align-self:center">↩ repeat</span>`
+        : '';
+
+      const restNames = resting.map(n =>
+        `<span style="color:${colorMap[n]};font-size:0.82rem;font-weight:500">${n}</span>`
+      ).join('<span style="color:#ccc"> · </span>');
+
+      return `<tr>
+        <td class="time-cell">${from} – ${to}</td>
+        <td><div class="pair-cell">${badges}${repeatTag}</div></td>
+        <td>${restNames}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function renderStats(participants, colorMap, workCount, schedule) {
+    const names = participants.map(p => p.name);
+    const dsMap = {};
+    participants.forEach(p => { dsMap[p.name] = p.doubleShift; });
+
+    const pairsWith = {};
+    names.forEach(n => { pairsWith[n] = {}; });
+    schedule.forEach(pair => {
+      pairsWith[pair[0]][pair[1]] = (pairsWith[pair[0]][pair[1]] || 0) + 1;
+      pairsWith[pair[1]][pair[0]] = (pairsWith[pair[1]][pair[0]] || 0) + 1;
+    });
+
+    const consecutiveCount = {};
+    names.forEach(n => { consecutiveCount[n] = 0; });
+    for (let i = 0; i < schedule.length - 1; i++)
+      for (const n of schedule[i])
+        if (schedule[i + 1].includes(n)) consecutiveCount[n]++;
+
+    document.getElementById('stats-grid').innerHTML = participants.map(p => {
+      const n = p.name;
+      const partnerEntries = Object.entries(pairsWith[n]).sort((a, b) => b[1] - a[1]);
+      const partners = partnerEntries.map(([name, cnt]) => `${name} ×${cnt}`).join(', ');
+      const repeatedPartners = partnerEntries.filter(([, cnt]) => cnt > 1).map(([name, cnt]) => `${name} ×${cnt}`);
+      const partnerWarning = repeatedPartners.length > 0
+        ? `<div class="stat-line consecutive">⚠ Repeated pair: ${repeatedPartners.join(', ')}</div>`
+        : '';
+      const consec = consecutiveCount[n];
+      const consecLine = consec > 0
+        ? `<div class="stat-line consecutive">⚠ ${consec} consecutive shift${consec !== 1 ? 's' : ''}</div>`
+        : '';
+      const dsStatus = dsMap[n]
+        ? `<span style="color:var(--primary)">Allowed</span>`
+        : `<span style="color:var(--muted)">Not allowed</span>`;
+      return `<div class="stat-card">
+        <div class="stat-name" style="color:${colorMap[n]}">${n}</div>
+        <div class="stat-line">${workCount[n]} block${workCount[n] !== 1 ? 's' : ''} worked</div>
+        <div class="stat-line" style="margin-top:0.2rem">${partners || '—'}</div>
+        ${partnerWarning}
+        ${consecLine}
+        <div class="stat-ds-row">
+          <span class="stat-ds-label">Double shift</span>
+          <span style="font-size:0.75rem;font-weight:600">${dsStatus}</span>
+        </div>
+      </div>`;
+    }).join('');
+  }
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script>
+  async function copyScheduleImage() {
+    const btn = document.getElementById('copy-btn');
+    const target = document.querySelector('#output .card');
+    btn.textContent = 'Copying…';
+
+    try {
+      const canvas = await html2canvas(target, {
+        backgroundColor: '#ffffff',
+        scale: 2,
+        useCORS: true,
+      });
+
+      canvas.toBlob(async blob => {
+        try {
+          await navigator.clipboard.write([
+            new ClipboardItem({ 'image/png': blob })
+          ]);
+          btn.textContent = '✓ Copied!';
+          btn.classList.add('copied');
+        } catch {
+          // Fallback: download as file
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = 'schedule.png';
+          a.click();
+          btn.textContent = 'Copy as image';
+        }
+        setTimeout(() => {
+          btn.textContent = 'Copy as image';
+          btn.classList.remove('copied');
+        }, 2500);
+      }, 'image/png');
+    } catch (e) {
+      btn.textContent = 'Copy as image';
+    }
+  }
+</script>
+</body>
+</html>
