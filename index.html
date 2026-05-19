@@ -457,7 +457,7 @@
         <div class="option-row-desc">Globally allow consecutive shifts. Individual settings apply when enabled.</div>
       </div>
       <label class="toggle">
-        <input type="checkbox" id="allow-double" checked onchange="onAllowDoubleChange(this.checked)" />
+        <input type="checkbox" id="allow-double" onchange="onAllowDoubleChange(this.checked)" />
         <span class="toggle-track"></span>
       </label>
     </div>
@@ -611,7 +611,7 @@
   }
 
   // Seed default participants (placeholders only)
-  ['Wei', 'Maritza', 'James', 'Priya'].forEach(n => addParticipant(n));
+  ['Wei', 'Maritza', 'James', 'Priya'].forEach(n => addParticipant(n, '', false));
 
   function toMinutes(timeStr) {
     const [h, m] = timeStr.split(':').map(Number);
